@@ -23,10 +23,12 @@ REBIND_CACHE = []
 LOCAL_IP = ''
 PASSWORD = 'admin'
 
+
 def md5(src):
     m2 = hashlib.md5()
     m2.update(src)
     return m2.hexdigest()
+
 
 def is_ip(ip):
     p = re.compile('^((25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(25[0-5]|2[0-4]\d|[01]?\d\d?)$')
@@ -34,6 +36,7 @@ def is_ip(ip):
         return ip
     else:
         return '3.3.3.3'
+
 
 API_TOKEN = md5("ded08972cead38d6ed8f485e5b65b4b6" + PASSWORD)
 
@@ -271,7 +274,7 @@ HTML_TMEPLATE = '''
 
 @auth.verify_password
 def verify_pw(username, password):
-    #print(username, password)
+    # print(username, password)
     if username == 'admin' and password == PASSWORD:
         return 'true'
     return None
@@ -417,13 +420,14 @@ class DNSUDPHandler(SocketServer.BaseRequestHandler):
                     ip = is_ip(ip_1)
 
             if ROOT_DOMAIN in domain:
-                #name = domain.replace('.' + ROOT_DOMAIN, '')
+                # name = domain.replace('.' + ROOT_DOMAIN, '')
                 sql = "INSERT INTO dns_log (name,domain,ip,insert_time) \
                     VALUES(?, ?, ?, datetime(CURRENT_TIMESTAMP,'localtime'))"
 
                 DB.exec_sql(sql, pre_data, domain, ip)
             dns.setip(ip)
-            print '%s: %s-->%s' % (self.client_address[0], pre_data, ip)
+            print
+            '%s: %s-->%s' % (self.client_address[0], pre_data, ip)
             socket_u.sendto(dns.getbytes(), self.client_address)
         else:
             socket_u.sendto(data, self.client_address)
@@ -464,7 +468,7 @@ def dns_list():
 
     sql = "SELECT domain,ip,insert_time FROM dns_log where domain like ? order by id desc limit ?,?"
     rows = DB.exec_sql(sql, search, offset, limit)
-    
+
     for v in rows:
         result.append({"domain": v[0], "ip": v[1], "insert_time": v[2]})
     sql = "SELECT COUNT(*) FROM dns_log"
@@ -477,8 +481,8 @@ def dns_list():
 def http_log(path):
     post_data = request.data
     if post_data == '':
-        for k,v in request.form.items():
-            post_data += k +'=' + v + '&'
+        for k, v in request.form.items():
+            post_data += k + '=' + v + '&'
         post_data = post_data[:-1]
     args = [
         request.url,
@@ -533,16 +537,16 @@ def mock_list():
         for v in rows:
             result.append({
                 'url':
-                'http://mock.{domain}/mock/{name}'.format(
-                    domain=ROOT_DOMAIN, name=v[0]),
+                    'http://mock.{domain}/mock/{name}'.format(
+                        domain=ROOT_DOMAIN, name=v[0]),
                 'code':
-                v[1],
+                    v[1],
                 'headers':
-                v[2],
+                    v[2],
                 'body':
-                v[3],
+                    v[3],
                 'insert_time':
-                v[4]
+                    v[4]
             })
         sql = "SELECT COUNT(*) FROM mock"
         rows = DB.exec_sql(sql)
@@ -634,6 +638,7 @@ def xss_list():
     total = rows[0][0]
     return jsonify({'total': int(total), 'rows': result})
 
+
 @app.route('/del/<col>')
 @auth.login_required
 def del_data(col):
@@ -650,14 +655,76 @@ def del_data(col):
     sql = "Delete FROM {table}".format(table=table)
     DB.exec_sql(sql)
 
-    return jsonify({'status':1})
+    return jsonify({'status': 1})
+
+
+@app.route('/v1/records')
+def api_ceye():
+    args = request.values
+
+    if not args.get('token') or args.get('token') != API_TOKEN:
+        return jsonify({
+            "meta": {
+                "code": 21,
+                "message": "User Not Exists",
+                "description": "Invalid token"
+            }
+        })
+
+    offset = int(args.get('offset', 0))
+    limit = int(args.get('limit', 100))
+    query = args.get('filter')
+    query = "%" + query + "%"
+    action = args.get('type')
+    result = []
+    if action == 'dns':
+        sql = "SELECT domain,ip,insert_time FROM dns_log where domain like ? order by id desc limit ?,?"
+        rows = DB.exec_sql(sql, query, offset, limit)
+
+        for v in rows:
+            result.append({"name": v[0], "remote_addr": v[1], "created_at": v[2]})
+
+    elif action == 'http':
+        sql = "SELECT url,headers,data,ip,insert_time FROM http_log where url like ? order by id desc limit ?,?"
+        rows = DB.exec_sql(sql, query, offset, limit)
+
+        for v in rows:
+            result.append({'name': v[0], 'user_agent': v[1],
+                           'data': v[2], 'remote_addr': v[3], 'created_at': v[4]})
+    else:
+        return jsonify({
+            "meta": {
+                "code": 88,
+                "message": "Invalid Parameter",
+                "description": {
+                    "type": [
+                        "unallowed value htt1p"
+                    ]
+                }
+            }
+        })
+
+    if result == []:
+        return jsonify({
+            "meta": {
+                "code": 200,
+                "message": "OK"
+            },
+            "data": []
+        })
+    else:
+        return jsonify({"meta": {
+            "code": 200,
+            "message": "OK"
+        }, 'data': result})
+
 
 @app.route('/api/<action>')
 def api_check(action):
     args = request.values
 
     if not args.get('token') or args.get('token') != API_TOKEN:
-        return jsonify({'status':'0', 'msg':'error token'})
+        return jsonify({'status': '0', 'msg': 'error token'})
 
     offset = int(args.get('offset', 0))
     limit = int(args.get('limit', 10))
@@ -687,6 +754,7 @@ def api_check(action):
     else:
         return jsonify({'status': '1', 'rows': result})
 
+
 def dns():
     d = DNSServer()
     d.add_record('httplog', LOCAL_IP)
@@ -700,7 +768,8 @@ if __name__ == "__main__":
 Usage: python vtest.py -d yourdomain.com [-h 123.123.123.123] [-p password]
     '''
     if len(sys.argv) < 2:
-        print msg
+        print
+        msg
         exit()
     options, args = getopt.getopt(sys.argv[1:], "d:h:p:")
     for opt, arg in options:
