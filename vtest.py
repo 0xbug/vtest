@@ -224,6 +224,7 @@ HTML_TMEPLATE = '''
                             <br> Token: {token}
                             <br> http api: /api/http?token={token}&q=xxx
                             <br> dns api: /api/dns?token={token}&q=xxx
+                            <br> CEYE API: /v1/records?token={token}&type={dns|http}&filter={filter}
                         </p>
                     </div>
                     </table>
